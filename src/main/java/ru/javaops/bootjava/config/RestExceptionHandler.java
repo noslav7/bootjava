@@ -20,14 +20,13 @@ import org.springframework.validation.FieldError;
 import org.springframework.validation.ObjectError;
 import org.springframework.web.ErrorResponse;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
-import org.springframework.web.bind.ServletRequestBindingException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.NoHandlerFoundException;
 import ru.javaops.bootjava.error.*;
 
 import java.io.FileNotFoundException;
-import java.net.URI;
 import java.nio.file.AccessDeniedException;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -49,7 +48,6 @@ public class RestExceptionHandler {
         {
 // more specific first
             put(NotFoundException.class, NOT_FOUND);
-            put(AuthenticationException.class, UNAUTHORIZED);
             put(FileNotFoundException.class, NOT_FOUND);
             put(NoHandlerFoundException.class, NOT_FOUND);
             put(DataConflictException.class, DATA_CONFLICT);
@@ -59,38 +57,22 @@ public class RestExceptionHandler {
             put(EntityNotFoundException.class, DATA_CONFLICT);
             put(DataIntegrityViolationException.class, DATA_CONFLICT);
             put(IllegalArgumentException.class, BAD_DATA);
+            put(BindException.class, BAD_REQUEST);
             put(ValidationException.class, BAD_REQUEST);
             put(HttpRequestMethodNotSupportedException.class, BAD_REQUEST);
-            put(ServletRequestBindingException.class, BAD_REQUEST);
+            put(MissingServletRequestParameterException.class, BAD_REQUEST);
             put(RequestRejectedException.class, BAD_REQUEST);
             put(AccessDeniedException.class, FORBIDDEN);
+            put(AuthenticationException.class, UNAUTHORIZED);
         }
     };
 
     @ExceptionHandler(BindException.class)
     ProblemDetail bindException(BindException ex, HttpServletRequest request) {
-        Map<String, String> invalidParams = getErrorMap(ex.getBindingResult());
-        String path = request.getRequestURI();
-        log.warn(ERR_PFX + "BindException with invalidParams {} at request {}", invalidParams, path);
-        return createProblemDetail(ex, path, BAD_REQUEST, "BindException", Map.of("invalid_params", invalidParams));
+        return processException(ex, request, Map.of("invalid_params", getErrorMap(ex.getBindingResult())));
     }
 
-    private Map<String, String> getErrorMap(BindingResult result) {
-        Map<String, String> invalidParams = new LinkedHashMap<>();
-        for (ObjectError error : result.getGlobalErrors()) {
-            invalidParams.put(error.getObjectName(), getErrorMessage(error));
-        }
-        for (FieldError error : result.getFieldErrors()) {
-            invalidParams.put(error.getField(), getErrorMessage(error));
-        }
-        return invalidParams;
-    }
-
-    private String getErrorMessage(ObjectError error) {
-        return error.getCode() == null ? error.getDefaultMessage() :
-                messageSource.getMessage(error.getCode(), error.getArguments(), error.getDefaultMessage(), LocaleContextHolder.getLocale());
-    }
-
+    //   https://howtodoinjava.com/spring-mvc/spring-problemdetail-errorresponse/#5-adding-problemdetail-to-custom-exceptions
     @ExceptionHandler(Exception.class)
     ProblemDetail exception(Exception ex, HttpServletRequest request) {
         return processException(ex, request, Map.of());
@@ -106,22 +88,35 @@ public class RestExceptionHandler {
                 .findAny().map(Map.Entry::getValue);
         if (optType.isPresent()) {
             log.error(ERR_PFX + "Exception {} at request {}", ex, path);
-            return createProblemDetail(ex, path, optType.get(), ex.getMessage(), additionalParams);
+            return createProblemDetail(ex, optType.get(), ex.getMessage(), additionalParams);
         } else {
             Throwable root = getRootCause(ex);
             log.error(ERR_PFX + "Exception " + root + " at request " + path, root);
-            return createProblemDetail(ex, path, APP_ERROR, "Exception " + root.getClass().getSimpleName(), additionalParams);
+            return createProblemDetail(ex, APP_ERROR, "Exception " + root.getClass().getSimpleName(), additionalParams);
         }
     }
 
-    //    https://datatracker.ietf.org/doc/html/rfc7807
-    private ProblemDetail createProblemDetail(Exception ex, String path, ErrorType type, String defaultDetail, @NonNull Map<String, Object> additionalParams) {
+    private ProblemDetail createProblemDetail(Exception ex, ErrorType type, String defaultDetail, @NonNull Map<String, Object> additionalParams) {
         ErrorResponse.Builder builder = ErrorResponse.builder(ex, type.status, defaultDetail);
-        ProblemDetail pd = builder
-                .title(type.title).instance(URI.create(path))
-                .build().updateAndGetBody(messageSource, LocaleContextHolder.getLocale());
+        ProblemDetail pd = builder.build().updateAndGetBody(messageSource, LocaleContextHolder.getLocale());
         additionalParams.forEach(pd::setProperty);
         return pd;
+    }
+
+    private Map<String, String> getErrorMap(BindingResult result) {
+        Map<String, String> invalidParams = new LinkedHashMap<>();
+        for (ObjectError error : result.getGlobalErrors()) {
+            invalidParams.put(error.getObjectName(), getErrorMessage(error));
+        }
+        for (FieldError error : result.getFieldErrors()) {
+            invalidParams.put(error.getField(), getErrorMessage(error));
+        }
+        log.warn("BindingException: {}", invalidParams);
+        return invalidParams;
+    }
+
+    private String getErrorMessage(ObjectError error) {
+        return messageSource.getMessage(error.getCode(), error.getArguments(), error.getDefaultMessage(), LocaleContextHolder.getLocale());
     }
 
     //  https://stackoverflow.com/a/65442410/548473

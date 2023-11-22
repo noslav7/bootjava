@@ -1,4 +1,4 @@
-package ru.javaops.bootjava.validation;
+package ru.javaops.bootjava.util.validation;
 
 import jakarta.validation.Constraint;
 import jakarta.validation.Payload;

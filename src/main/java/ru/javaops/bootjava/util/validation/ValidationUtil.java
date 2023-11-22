@@ -1,11 +1,11 @@
-package ru.javaops.bootjava.web;
+package ru.javaops.bootjava.util.validation;
 
 import lombok.experimental.UtilityClass;
 import ru.javaops.bootjava.HasId;
 import ru.javaops.bootjava.error.IllegalRequestDataException;
 
 @UtilityClass
-public class RestValidation {
+public class ValidationUtil {
 
     public static void checkNew(HasId bean) {
         if (!bean.isNew()) {
