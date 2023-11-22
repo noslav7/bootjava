@@ -1,10 +1,21 @@
 package ru.javaops.bootjava.error;
 
-import org.springframework.lang.NonNull;
+import lombok.Getter;
+import org.springframework.boot.web.error.ErrorAttributeOptions;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
 
-public class AppException extends RuntimeException {
+@Getter
+public class AppException extends ResponseStatusException {
+    private final ErrorAttributeOptions options;
 
-    public AppException(@NonNull String message) {
-        super(message);
+    public AppException(HttpStatus status, String message, ErrorAttributeOptions options) {
+        super(status, message);
+        this.options = options;
+    }
+
+    @Override
+    public String getMessage() {
+        return getReason();
     }
 }

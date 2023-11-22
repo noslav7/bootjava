@@ -1,16 +1,16 @@
 package ru.javaops.bootjava.web.user;
 
-import org.slf4j.Logger;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.WebDataBinder;
 import org.springframework.web.bind.annotation.InitBinder;
 import ru.javaops.bootjava.model.User;
 import ru.javaops.bootjava.repository.UserRepository;
+import ru.javaops.bootjava.util.UserUtil;
 
-import static org.slf4j.LoggerFactory.getLogger;
-
+@Slf4j
 public abstract class AbstractUserController {
-    protected final Logger log = getLogger(getClass());
 
     @Autowired
     protected UserRepository repository;
@@ -23,13 +23,17 @@ public abstract class AbstractUserController {
         binder.addValidators(emailValidator);
     }
 
-    public User get(int id) {
+    public ResponseEntity<User> get(int id) {
         log.info("get {}", id);
-        return repository.getExisted(id);
+        return ResponseEntity.of(repository.findById(id));
     }
 
     public void delete(int id) {
         log.info("delete {}", id);
         repository.deleteExisted(id);
+    }
+
+    protected User prepareAndSave(User user) {
+        return repository.save(UserUtil.prepareToSave(user));
     }
 }
